@@ -1,33 +1,115 @@
 package weather
 
 import (
-	"log"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
 	"os"
-
-	owm "github.com/briandowns/openweathermap"
 )
 
+type CurrentWeather struct {
+	Coord      Coord     `json:"coord"`
+	Weather    []Weather `json:"weather"`
+	Base       string    `json:"base"`
+	Main       Main      `json:"main"`
+	Visibility int       `json:"visibility"`
+	Wind       Wind      `json:"wind"`
+	Rain       Rain      `json:"rain"`
+	Clouds     Clouds    `json:"clouds"`
+	Dt         int       `json:"dt"`
+	Sys        Sys       `json:"sys"`
+	Timezone   int       `json:"timezone"`
+	ID         int       `json:"id"`
+	Name       string    `json:"name"`
+	Cod        int       `json:"cod"`
+	ZipCode string
+	Logger *slog.Logger
+}
+type Coord struct {
+	Lon float64 `json:"lon"`
+	Lat float64 `json:"lat"`
+}
 type Weather struct {
-	client  *owm.CurrentWeatherData
-	zipCode string
+	ID          int    `json:"id"`
+	Main        string `json:"main"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+}
+type Main struct {
+	Temp      float64 `json:"temp"`
+	FeelsLike float64 `json:"feels_like"`
+	TempMin   float64 `json:"temp_min"`
+	TempMax   float64 `json:"temp_max"`
+	Pressure  int     `json:"pressure"`
+	Humidity  int     `json:"humidity"`
+	SeaLevel  int     `json:"sea_level"`
+	GrndLevel int     `json:"grnd_level"`
+}
+type Wind struct {
+	Speed float64 `json:"speed"`
+	Deg   int     `json:"deg"`
+	Gust  float64 `json:"gust"`
+}
+type Rain struct {
+	OneH float64 `json:"1h"`
+}
+type Clouds struct {
+	All int `json:"all"`
+}
+type Sys struct {
+	Type    int    `json:"type"`
+	ID      int    `json:"id"`
+	Country string `json:"country"`
+	Sunrise int    `json:"sunrise"`
+	Sunset  int    `json:"sunset"`
 }
 
-var apiKey = os.Getenv("OWM_API_KEY")
 
-func New(zipCode string) Weather {
-	w, err := owm.NewCurrent("F", "EN", apiKey)
-	if err != nil {
-		log.Fatalln(err)
+var (
+	apiKey = os.Getenv("OWM_API_KEY")
+	countryCode = "US"
+	unit = "F"
+	lang = "EN"
+)
+
+func New(zipCode string, logger *slog.Logger) *CurrentWeather {
+	return &CurrentWeather{
+		ZipCode: zipCode,
+		Logger: logger,
 	}
-	return Weather{client: w, zipCode: zipCode}
 }
 
-func (w Weather) getTemperature() float64 {
-	w.client.CurrentByZipcode(w.zipCode, "US")
-	return w.client.Main.Temp
+func (w *CurrentWeather) GetTemperature() float64 {
+	return w.Main.Temp
 }
 
-func (w Weather) Get() *owm.CurrentWeatherData {
-	w.client.CurrentByZipcode(w.zipCode, "US")
-	return w.client
+var (
+	baseURL = "https://api.openweathermap.org/data/2.5/weather?appid=%s&zip=%s,%s&units=%s&lang=%s"
+	baseurl2 = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
+	errInvalidKey          = errors.New("invalid api key")
+)
+
+
+func (w *CurrentWeather) Call() {
+	url := fmt.Sprintf(baseurl2, w.ZipCode, apiKey)
+	response, err := http.Get(url)
+	w.Logger.Info("made http call")
+	if err != nil {
+		w.Logger.Error("HTTP request hit some problem", "Error", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusUnauthorized {
+		w.Logger.Info("response body status code")
+	}
+
+	err = json.NewDecoder(response.Body).Decode(&w)
+
+	w.Logger.Info("values","weather", w)
+
+	if err != nil {
+		w.Logger.Error("Decoding the response body hit some problem", "Error", err)
+	}
 }
