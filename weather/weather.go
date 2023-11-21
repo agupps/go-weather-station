@@ -1,136 +1,115 @@
 package weather
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"http"
-	"json"
+	"log/slog"
+	"net/http"
 	"os"
 )
 
-type Weather struct {
-	zipCode string
-	countryCode string
-	GeoPos   Coordinates `json:"coord"`
-	Sys      Sys         `json:"sys"`
-	Base     string      `json:"base"`
-	Weather  []WeatherMain   `json:"weather"`
-	Main     Main        `json:"main"`
+type CurrentWeather struct {
+	Coord      Coord     `json:"coord"`
+	Weather    []Weather `json:"weather"`
+	Base       string    `json:"base"`
+	Main       Main      `json:"main"`
 	Visibility int       `json:"visibility"`
-	Wind     Wind        `json:"wind"`
-	Clouds   Clouds      `json:"clouds"`
-	Rain     Rain        `json:"rain"`
-	Snow     Snow        `json:"snow"`
-	Dt       int         `json:"dt"`
-	ID       int         `json:"id"`
-	Name     string      `json:"name"`
-	Cod      int         `json:"cod"`
-	Timezone int         `json:"timezone"`
-	Unit     string
-	Lang     string
-	Key      string
-	*Settings
+	Wind       Wind      `json:"wind"`
+	Rain       Rain      `json:"rain"`
+	Clouds     Clouds    `json:"clouds"`
+	Dt         int       `json:"dt"`
+	Sys        Sys       `json:"sys"`
+	Timezone   int       `json:"timezone"`
+	ID         int       `json:"id"`
+	Name       string    `json:"name"`
+	Cod        int       `json:"cod"`
+	ZipCode string
+	Logger *slog.Logger
 }
-
-// Coordinates struct holds longitude and latitude data in returned
-// JSON or as parameter data for requests using longitude and latitude.
-type Coordinates struct {
-	Longitude float64 `json:"lon"`
-	Latitude  float64 `json:"lat"`
+type Coord struct {
+	Lon float64 `json:"lon"`
+	Lat float64 `json:"lat"`
 }
-
-// Sys struct contains general information about the request
-// and the surrounding area for where the request was made.
-type Sys struct {
-	Type    int     `json:"type"`
-	ID      int     `json:"id"`
-	Message float64 `json:"message"`
-	Country string  `json:"country"`
-	Sunrise int     `json:"sunrise"`
-	Sunset  int     `json:"sunset"`
-}
-
-// Wind struct contains the speed and degree of the wind.
-type Wind struct {
-	Speed float64 `json:"speed"`
-	Deg   float64 `json:"deg"`
-}
-
-// Weather struct holds high-level, basic info on the returned
-// data.
-type WeatherMain struct {
+type Weather struct {
 	ID          int    `json:"id"`
 	Main        string `json:"main"`
 	Description string `json:"description"`
 	Icon        string `json:"icon"`
 }
-
-// Clouds struct holds data regarding cloud cover.
+type Main struct {
+	Temp      float64 `json:"temp"`
+	FeelsLike float64 `json:"feels_like"`
+	TempMin   float64 `json:"temp_min"`
+	TempMax   float64 `json:"temp_max"`
+	Pressure  int     `json:"pressure"`
+	Humidity  int     `json:"humidity"`
+	SeaLevel  int     `json:"sea_level"`
+	GrndLevel int     `json:"grnd_level"`
+}
+type Wind struct {
+	Speed float64 `json:"speed"`
+	Deg   int     `json:"deg"`
+	Gust  float64 `json:"gust"`
+}
+type Rain struct {
+	OneH float64 `json:"1h"`
+}
 type Clouds struct {
 	All int `json:"all"`
 }
-
-// Rain struct contains 3 hour data
-type Rain struct {
-	OneH   float64 `json:"1h,omitempty"`
-	ThreeH float64 `json:"3h,omitempty"`
+type Sys struct {
+	Type    int    `json:"type"`
+	ID      int    `json:"id"`
+	Country string `json:"country"`
+	Sunrise int    `json:"sunrise"`
+	Sunset  int    `json:"sunset"`
 }
 
-// Snow struct contains 3 hour data
-type Snow struct {
-	OneH   float64 `json:"1h,omitempty"`
-	ThreeH float64 `json:"3h,omitempty"`
-}
 
-// Main struct contains the temperates, humidity, pressure for the request.
-type Main struct {
-	Temp      float64 `json:"temp"`
-	TempMin   float64 `json:"temp_min"`
-	TempMax   float64 `json:"temp_max"`
-	FeelsLike float64 `json:"feels_like"`
-	Pressure  float64 `json:"pressure"`
-	SeaLevel  float64 `json:"sea_level"`
-	GrndLevel float64 `json:"grnd_level"`
-	Humidity  int     `json:"humidity"`
-}
+var (
+	apiKey = os.Getenv("OWM_API_KEY")
+	countryCode = "US"
+	unit = "F"
+	lang = "EN"
+)
 
-// Settings holds the client settings
-type Settings struct {
-	client *http.Client
-}
-
-var apiKey = os.Getenv("OWM_API_KEY")
-
-func New(zipCode string) *Weather {
-	return &Weather{
-		zipCode: zipCode,
-		Key: apiKey,
-		countryCode: "US",
-		Unit: "F",
-		Lang: "EN",
+func New(zipCode string, logger *slog.Logger) *CurrentWeather {
+	return &CurrentWeather{
+		ZipCode: zipCode,
+		Logger: logger,
 	}
 }
 
-func (w *Weather) getTemperature() float64 {
+func (w *CurrentWeather) GetTemperature() float64 {
 	return w.Main.Temp
 }
 
 var (
-	baseURL = "https://api.openweathermap.org/data/2.5/weather?%s"
+	baseURL = "https://api.openweathermap.org/data/2.5/weather?appid=%s&zip=%s,%s&units=%s&lang=%s"
+	baseurl2 = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
 	errInvalidKey          = errors.New("invalid api key")
 )
 
 
-func (w *Weather) GetWeather() {
-	response, err := w.client.Get(fmt.Sprintf(fmt.Sprintf(baseURL, "appid=%s&zip=%s,%s&units=%s&lang=%s"), w.Key, w.zipCode, w.countryCode, w.Unit, w.Lang))
+func (w *CurrentWeather) Call() {
+	url := fmt.Sprintf(baseurl2, w.ZipCode, apiKey)
+	response, err := http.Get(url)
+	w.Logger.Info("made http call")
 	if err != nil {
-		return err
+		w.Logger.Error("HTTP request hit some problem", "Error", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized {
-		return errInvalidKey
+		w.Logger.Info("response body status code")
 	}
 
-	w = json.NewDecoder(response.Body).Decode(&w)
+	err = json.NewDecoder(response.Body).Decode(&w)
+
+	w.Logger.Info("values","weather", w)
+
+	if err != nil {
+		w.Logger.Error("Decoding the response body hit some problem", "Error", err)
+	}
 }
