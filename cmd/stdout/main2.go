@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"os"
 	"time"
-	"weather-station/poller"
-	"weather-station/weather"
+	"weather-station/internal/client"
+	"weather-station/internal/poller"
+	"weather-station/internal/weather"
 )
 
 func main() {
@@ -14,10 +15,11 @@ func main() {
 
 
 	p := poller.NewPoller(time.Second, logger)
-	p.Add(weather.New("21163", logger))
-	p.Add(weather.New("20008", logger))
-	p.Add(weather.New("27520", logger))
-	p.Add(weather.New("95134", logger))
+	client := client.NewOpenWeatherMapClient()
+	p.Add(weather.New(client, "21163", logger))
+	p.Add(weather.New(client, "20008", logger))
+	p.Add(weather.New(client, "27520", logger))
+	p.Add(weather.New(client, "95134", logger))
 	p.Start()
 
 

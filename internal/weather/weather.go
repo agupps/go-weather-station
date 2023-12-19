@@ -3,10 +3,9 @@ package weather
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
+	"weather-station/internal/client"
 )
 
 type CurrentWeather struct {
@@ -26,6 +25,7 @@ type CurrentWeather struct {
 	Cod        int       `json:"cod"`
 	ZipCode string
 	Logger *slog.Logger
+	client client.HTTPGetter
 }
 type Coord struct {
 	Lon float64 `json:"lon"`
@@ -68,16 +68,16 @@ type Sys struct {
 
 
 var (
-	apiKey = os.Getenv("OWM_API_KEY")
 	countryCode = "US"
 	unit = "F"
 	lang = "EN"
 )
 
-func New(zipCode string, logger *slog.Logger) *CurrentWeather {
+func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger) *CurrentWeather {
 	return &CurrentWeather{
 		ZipCode: zipCode,
 		Logger: logger,
+		client: httpClient,
 	}
 }
 
@@ -86,16 +86,14 @@ func (w *CurrentWeather) GetTemperature() float64 {
 }
 
 var (
-	baseURL = "https://api.openweathermap.org/data/2.5/weather?appid=%s&zip=%s,%s&units=%s&lang=%s"
 	baseurl2 = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
 	errInvalidKey          = errors.New("invalid api key")
 )
 
 
 func (w *CurrentWeather) Call() {
-	url := fmt.Sprintf(baseurl2, w.ZipCode, apiKey)
-	response, err := http.Get(url)
 	w.Logger.Info("made http call")
+	response, err := w.client.Get(w.ZipCode)
 	if err != nil {
 		w.Logger.Error("HTTP request hit some problem", "Error", err)
 	}
