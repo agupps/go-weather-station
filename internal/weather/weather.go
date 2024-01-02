@@ -67,12 +67,6 @@ type Sys struct {
 	Sunset  int    `json:"sunset"`
 }
 
-var (
-	countryCode = "US"
-	unit        = "F"
-	lang        = "EN"
-)
-
 func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger) *CurrentWeather {
 	return &CurrentWeather{
 		ZipCode: zipCode,
@@ -84,11 +78,6 @@ func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger) *Cur
 func (w *CurrentWeather) GetTemperature() float64 {
 	return w.Main.Temp
 }
-
-var (
-	baseurl2      = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
-	errInvalidKey = errors.New("invalid api key")
-)
 
 func (w *CurrentWeather) Call() {
 	if err := w.Get(); err != nil {
