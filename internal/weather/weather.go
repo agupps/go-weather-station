@@ -3,6 +3,7 @@ package weather
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"weather-station/internal/client"
@@ -23,9 +24,9 @@ type CurrentWeather struct {
 	ID         int       `json:"id"`
 	Name       string    `json:"name"`
 	Cod        int       `json:"cod"`
-	ZipCode string
-	Logger *slog.Logger
-	client client.HTTPGetter
+	ZipCode    string
+	Logger     *slog.Logger
+	client     client.HTTPGetter
 }
 type Coord struct {
 	Lon float64 `json:"lon"`
@@ -66,18 +67,17 @@ type Sys struct {
 	Sunset  int    `json:"sunset"`
 }
 
-
 var (
 	countryCode = "US"
-	unit = "F"
-	lang = "EN"
+	unit        = "F"
+	lang        = "EN"
 )
 
 func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger) *CurrentWeather {
 	return &CurrentWeather{
 		ZipCode: zipCode,
-		Logger: logger,
-		client: httpClient,
+		Logger:  logger,
+		client:  httpClient,
 	}
 }
 
@@ -86,28 +86,44 @@ func (w *CurrentWeather) GetTemperature() float64 {
 }
 
 var (
-	baseurl2 = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
-	errInvalidKey          = errors.New("invalid api key")
+	baseurl2      = "https://api.openweathermap.org/data/2.5/weather?zip=%s&appid=%s"
+	errInvalidKey = errors.New("invalid api key")
 )
 
-
 func (w *CurrentWeather) Call() {
+	if err := w.Get(); err != nil {
+		w.Logger.Error("Hit some problem", "Error", err)
+	}
+}
+
+func (w *CurrentWeather) Get() error {
 	w.Logger.Info("made http call")
 	response, err := w.client.Get(w.ZipCode)
 	if err != nil {
-		w.Logger.Error("HTTP request hit some problem", "Error", err)
+		return fmt.Errorf("HTTP client unable to make call, %v", err)
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized {
-		w.Logger.Info("response body status code")
+	if response.StatusCode != http.StatusOK {
+		return handleBadResponse(response.StatusCode)
 	}
 
 	err = json.NewDecoder(response.Body).Decode(&w)
 
-	w.Logger.Info("values","weather", w)
+	w.Logger.Info("values", "weather", w)
 
 	if err != nil {
-		w.Logger.Error("Decoding the response body hit some problem", "Error", err)
+		return fmt.Errorf("error decoding the response body, %v", err)
 	}
+	return nil
+}
+
+func handleBadResponse(statusCode int) error {
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return errors.New("bad API key")
+	case http.StatusTooManyRequests:
+		return errors.New("rate limited")
+	}
+	return fmt.Errorf("unknown api error, status code: %d", statusCode)
 }

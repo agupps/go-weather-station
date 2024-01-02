@@ -13,16 +13,11 @@ import (
 )
 
 type HTTPMock struct {
+	response *http.Response
 }
 
-func (client HTTPMock) Get(zipCode string) (*http.Response, error) {
-	stringReader := strings.NewReader(sampleResponse)
-	
-	exampleResponse := &http.Response{
-		Body: io.NopCloser(stringReader),
-		Status: http.StatusText(200),
-	}
-	return exampleResponse, nil
+func (client HTTPMock) Get(_ string) (*http.Response, error) {
+	return client.response, nil
 }
 
 var sampleResponse = `
@@ -77,14 +72,47 @@ var sampleResponse = `
   }                        
 `
 
-func TestCurrentWeather_Call(t *testing.T){
-	
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+var badAPIKeyResponse = `{"cod":401, "message": "Invalid API key. Please see https://openweathermap.org/faq#error401 for more info."}`
 
+func TestCurrentWeather_Call(t *testing.T) {
+	testCases := []struct {
+		name          string
+		statusCode    int
+		responseText  string
+		errorExpected bool
+	}{
+		{
+			name:          "successful call",
+			statusCode:    http.StatusOK,
+			responseText:  sampleResponse,
+			errorExpected: false,
+		},
+		{
+			name:          "bad api key",
+			statusCode:    http.StatusUnauthorized,
+			responseText:  badAPIKeyResponse,
+			errorExpected: true,
+		},
+	}
+	for _, testCase := range testCases {
+		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	mockClient := HTTPMock{}
+		stringReader := strings.NewReader(testCase.responseText)
 
-	w := weather.New(mockClient, "21163", logger)
-	w.Call()
-	assert.Equal(t, w.Main.Temp, 298.48)
+		exampleResponse := &http.Response{
+			Body:       io.NopCloser(stringReader),
+			Status:     http.StatusText(testCase.statusCode),
+			StatusCode: testCase.statusCode,
+		}
+		mockClient := HTTPMock{response: exampleResponse}
+
+		w := weather.New(mockClient, "21163", logger)
+		err := w.Get()
+		if testCase.errorExpected {
+			assert.Error(t, err)
+		} else {
+			assert.Nil(t, err)
+			assert.Equal(t, 298.48, w.Main.Temp)
+		}
+	}
 }
