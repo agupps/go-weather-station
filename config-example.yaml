@@ -1,0 +1,5 @@
+name: Open Weather API
+secret: 
+weatherProperties:
+  units:
+  lang:
