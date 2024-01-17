@@ -97,6 +97,7 @@ func (w *CurrentWeather) Get() error {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
+		w.metrics.ApiBadResponseCounter.WithLabelValues(fmt.Sprint(response.StatusCode)).Inc()
 		return handleBadResponse(response.StatusCode)
 	}
 

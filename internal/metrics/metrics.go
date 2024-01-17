@@ -3,8 +3,8 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 type Metrics struct {
-	TempGauge *prometheus.GaugeVec
-	WindSpeedGauge
+	TempGauge             *prometheus.GaugeVec
+	ApiBadResponseCounter *prometheus.CounterVec
 }
 
 func NewMetrics(registry prometheus.Registerer) *Metrics {
@@ -20,7 +20,21 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		},
 	)
 
-	registry.MustRegister(tempGauge)
+	apiBadResponseCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "weather",
+			Name:      "badResponse",
+			Help:      "Counter Vector indicating bad api response",
+		},
+		[]string{
+			"statusCode",
+		},
+	)
 
-	return &Metrics{TempGauge: tempGauge}
+	registry.MustRegister(tempGauge, apiBadResponseCounter)
+
+	return &Metrics{
+		TempGauge:             tempGauge,
+		ApiBadResponseCounter: apiBadResponseCounter,
+	}
 }
