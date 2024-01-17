@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"weather-station/internal/client"
+	"weather-station/internal/metrics"
 )
 
 type CurrentWeather struct {
@@ -27,6 +28,7 @@ type CurrentWeather struct {
 	ZipCode    string
 	Logger     *slog.Logger
 	client     client.HTTPGetter
+	metrics    *metrics.Metrics
 }
 type Coord struct {
 	Lon float64 `json:"lon"`
@@ -67,11 +69,12 @@ type Sys struct {
 	Sunset  int    `json:"sunset"`
 }
 
-func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger) *CurrentWeather {
+func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger, metrics *metrics.Metrics) *CurrentWeather {
 	return &CurrentWeather{
 		ZipCode: zipCode,
 		Logger:  logger,
 		client:  httpClient,
+		metrics: metrics,
 	}
 }
 
@@ -104,6 +107,9 @@ func (w *CurrentWeather) Get() error {
 	if err != nil {
 		return fmt.Errorf("error decoding the response body, %v", err)
 	}
+
+	w.metrics.TempGauge.WithLabelValues(w.ZipCode, w.Name).Set(w.Main.Temp)
+
 	return nil
 }
 
