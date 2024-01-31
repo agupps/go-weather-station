@@ -29,7 +29,7 @@ func main() {
 
 	registry := prometheus.NewRegistry()
 
-	tempMetrics := metrics.NewMetrics(registry)
+	newMetrics := metrics.NewMetrics(registry)
 
 	registry.MustRegister(
 		collectors.NewGoCollector(),
@@ -38,13 +38,13 @@ func main() {
 
 	client := client.NewOpenWeatherMapClient(c.Secret, c.WeatherProperties)
 
-	p.Add(weather.New(client, "21163", logger, tempMetrics))
-	p.Add(weather.New(client, "20008", logger, tempMetrics))
-	p.Add(weather.New(client, "27520", logger, tempMetrics))
-	p.Add(weather.New(client, "95134", logger, tempMetrics))
+	p.Add(weather.New(client, "21163", logger, newMetrics))
+	p.Add(weather.New(client, "20008", logger, newMetrics))
+	p.Add(weather.New(client, "27520", logger, newMetrics))
+	p.Add(weather.New(client, "95134", logger, newMetrics))
 	go p.Start()
 
-	// Expose /metrics HTTP endpoint using the created custom registry.
+	// Expose /newMetrics HTTP endpoint using the created custom registry.
 	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
