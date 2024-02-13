@@ -21,3 +21,6 @@
 go.work
 
 config.yaml
+
+pb_data
+.idea

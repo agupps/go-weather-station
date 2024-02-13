@@ -10,6 +10,7 @@ type Config struct {
 	Name              string            `yaml:"name"`
 	Secret            string            `yaml:"secret"`
 	WeatherProperties WeatherProperties `yaml:"weatherProperties"`
+	Locations         []string          `yaml:"locations"`
 }
 
 type WeatherProperties struct {

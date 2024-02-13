@@ -11,24 +11,25 @@ import (
 )
 
 type CurrentWeather struct {
-	Coord      Coord     `json:"coord"`
-	Weather    []Weather `json:"weather"`
-	Base       string    `json:"base"`
-	Main       Main      `json:"main"`
-	Visibility int       `json:"visibility"`
-	Wind       Wind      `json:"wind"`
-	Rain       Rain      `json:"rain"`
-	Clouds     Clouds    `json:"clouds"`
-	Dt         int       `json:"dt"`
-	Sys        Sys       `json:"sys"`
-	Timezone   int       `json:"timezone"`
-	ID         int       `json:"id"`
-	Name       string    `json:"name"`
-	Cod        int       `json:"cod"`
-	ZipCode    string
-	Logger     *slog.Logger
-	client     client.HTTPGetter
-	metrics    *metrics.Metrics
+	Coord       Coord     `json:"coord"`
+	Weather     []Weather `json:"weather"`
+	Base        string    `json:"base"`
+	Main        Main      `json:"main"`
+	Visibility  int       `json:"visibility"`
+	Wind        Wind      `json:"wind"`
+	Rain        Rain      `json:"rain"`
+	Clouds      Clouds    `json:"clouds"`
+	Dt          int       `json:"dt"`
+	Sys         Sys       `json:"sys"`
+	Timezone    int       `json:"timezone"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	Cod         int       `json:"cod"`
+	ZipCode     string
+	Logger      *slog.Logger
+	client      client.HTTPGetter
+	metrics     *metrics.Metrics
+	subscribers []Subscriber
 }
 type Coord struct {
 	Lon float64 `json:"lon"`
@@ -82,9 +83,23 @@ func (w *CurrentWeather) GetTemperature() float64 {
 	return w.Main.Temp
 }
 
+type Subscriber interface {
+	Notify(weather *CurrentWeather) error
+}
+
+func (w *CurrentWeather) AddSubscriber(s Subscriber) {
+	w.subscribers = append(w.subscribers, s)
+}
+
 func (w *CurrentWeather) Call() {
 	if err := w.Get(); err != nil {
 		w.Logger.Error("Hit some problem", "Error", err)
+	}
+
+	for _, subscriber := range w.subscribers {
+		if err := subscriber.Notify(w); err != nil {
+			w.Logger.Error("Unable to notify", "Error", err)
+		}
 	}
 }
 
