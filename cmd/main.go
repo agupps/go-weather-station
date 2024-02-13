@@ -46,7 +46,7 @@ func main() {
 
 	// Expose /newMetrics HTTP endpoint using the created custom registry.
 	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8081", nil))
 
 	// woodstock := weather.New("21163")
 	// fmt.Printf("Weather response: %+v\n", woodstock.Get())

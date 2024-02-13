@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  go-weather-station:
+    image: "go-weather-station:latest"
+    configs:
+      - config.yaml
+    build: .
+    ports:
+      - "8081:8081"
+    networks:
+      - weather-station
+
+  prometheus:
+    image: "prom/prometheus"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    networks:
+      - weather-station
+    ports:
+      - "9090:9090"
+
+configs:
+  config.yaml:
+    file: /Users/aditya.gupta/repo/go-weather-station/config.yaml
+  prometheus.yaml:
+    file: /Users/aditya.gupta/repo/go-weather-station/prometheus.yaml
+
+networks:
+  weather-station:
+    driver: bridge
