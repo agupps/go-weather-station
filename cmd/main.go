@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"log/slog"
+
 	"net/http"
 	"os"
 	"time"
@@ -12,12 +14,16 @@ import (
 	"weather-station/internal/poller"
 	"weather-station/internal/weather"
 
+	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
+
+	app := pocketbase.New()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -38,16 +44,29 @@ func main() {
 
 	client := client.NewOpenWeatherMapClient(c.Secret, c.WeatherProperties)
 
-	p.Add(weather.New(client, "21163", logger, newMetrics))
-	p.Add(weather.New(client, "20008", logger, newMetrics))
-	p.Add(weather.New(client, "27520", logger, newMetrics))
-	p.Add(weather.New(client, "95134", logger, newMetrics))
+	app.OnAfterBootstrap().Add(func(e *core.BootstrapEvent) error {
+
+		log.Println(e.App)
+		return nil
+	})
+
+	for _, zipcode := range c.Locations {
+		p.Add(weather.New(client, zipcode, logger, newMetrics))
+
+	}
 	go p.Start()
 
 	// Expose /newMetrics HTTP endpoint using the created custom registry.
 	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
-	log.Fatal(http.ListenAndServe(":8081", nil))
 
-	// woodstock := weather.New("21163")
-	// fmt.Printf("Weather response: %+v\n", woodstock.Get())
+	go func() {
+		if err := http.ListenAndServe(":8081", nil); !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("error starting or shutting down HTTP server", "err", err)
+			os.Exit(1)
+		}
+	}()
+
+	if err := app.Start(); err != nil {
+		log.Fatal(err)
+	}
 }
