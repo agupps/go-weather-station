@@ -28,7 +28,7 @@ type CurrentWeather struct {
 	ZipCode     string
 	Logger      *slog.Logger
 	client      client.HTTPGetter
-	metrics     *metrics.Metrics
+	metrics     metrics.Observable
 	subscribers []Subscriber
 }
 type Coord struct {
@@ -70,7 +70,7 @@ type Sys struct {
 	Sunset  int    `json:"sunset"`
 }
 
-func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger, metrics *metrics.Metrics) *CurrentWeather {
+func New(httpClient client.HTTPGetter, zipCode string, logger *slog.Logger, metrics metrics.Observable) *CurrentWeather {
 	return &CurrentWeather{
 		ZipCode: zipCode,
 		Logger:  logger,
@@ -112,7 +112,7 @@ func (w *CurrentWeather) Get() error {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		w.metrics.ApiBadResponseCounter.WithLabelValues(fmt.Sprint(response.StatusCode)).Inc()
+		w.metrics.ObserveAPIError(fmt.Sprint(response.StatusCode))
 		return handleBadResponse(response.StatusCode)
 	}
 
@@ -124,7 +124,7 @@ func (w *CurrentWeather) Get() error {
 		return fmt.Errorf("error decoding the response body, %v", err)
 	}
 
-	w.metrics.TempGauge.WithLabelValues(w.ZipCode, w.Name).Set(w.Main.Temp)
+	w.metrics.ObserveSuccess(w.Main.Temp, w.ZipCode, w.Name)
 
 	return nil
 }
