@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"log/slog"
 	"weather-station/internal/models"
 
-	"net/http"
 	"os"
 	"time"
 	"weather-station/internal/client"
@@ -15,7 +13,9 @@ import (
 	"weather-station/internal/poller"
 	"weather-station/internal/weather"
 
+	"github.com/labstack/echo/v5"
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -45,7 +45,7 @@ func main() {
 
 	client := client.NewOpenWeatherMapClient(c.Secret, c.WeatherProperties)
 
-	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+	app.OnAfterBootstrap().Add(func(e *core.BootstrapEvent) error {
 		locations := models.NewLocations(app.Dao())
 		for _, zipcode := range c.Locations {
 			w := weather.New(client, zipcode, logger, newMetrics)
@@ -57,6 +57,13 @@ func main() {
 				return err
 			}
 		}
+		return nil
+	})
+
+	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		// register new "GET /hello" route
+		e.Router.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry})),
+			apis.ActivityLogger(app))
 		return nil
 	})
 
@@ -73,15 +80,14 @@ func main() {
 	go p.Start()
 
 	// Expose /newMetrics HTTP endpoint using the created custom registry.
-	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
+	//http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
 
-	go func() {
-		if err := http.ListenAndServe(":8081", nil); !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("error starting or shutting down HTTP server", "err", err)
-			os.Exit(1)
-		}
-	}()
-
+	//go func() {
+	//	if err := http.ListenAndServe(":8081", nil); !errors.Is(err, http.ErrServerClosed) {
+	//		logger.Error("error starting or shutting down HTTP server", "err", err)
+	//		os.Exit(1)
+	//	}
+	//}()
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
 	}

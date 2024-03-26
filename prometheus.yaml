@@ -14,4 +14,4 @@ scrape_configs:
     # scheme defaults to 'http'.
 
     static_configs:
-      - targets: ["go-weather-station:8081"]
+      - targets: ["go-weather-station:8090"]

@@ -7,9 +7,11 @@ services:
       - config.yaml
     build: .
     ports:
-      - "8081:8081"
+      - "8090:8090"
     networks:
       - weather-station
+    volumes:
+      - /Users/aditya.gupta/repo/go-weather-station/pb_data:/pb_data
 
   prometheus:
     image: "prom/prometheus"

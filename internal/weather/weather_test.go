@@ -20,6 +20,17 @@ func (client HTTPMock) Get(_ string) (*http.Response, error) {
 	return client.response, nil
 }
 
+type MetricsMock struct {
+}
+
+func (m MetricsMock) ObserveSuccess(_ float64, _ ...string) {
+
+}
+
+func (m MetricsMock) ObserveAPIError(_ string) {
+
+}
+
 var sampleResponse = `
 {
 	"coord": {
@@ -106,7 +117,9 @@ func TestCurrentWeather_Call(t *testing.T) {
 		}
 		mockClient := HTTPMock{response: exampleResponse}
 
-		w := weather.New(mockClient, "21163", logger)
+		metricsMock := &MetricsMock{}
+
+		w := weather.New(mockClient, "21163", logger, metricsMock)
 		err := w.Get()
 		if testCase.errorExpected {
 			assert.Error(t, err)

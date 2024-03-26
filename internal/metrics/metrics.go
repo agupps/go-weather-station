@@ -1,6 +1,13 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+type Observable interface {
+	ObserveSuccess(float64, ...string)
+	ObserveAPIError(string)
+}
 
 type Metrics struct {
 	TempGauge             *prometheus.GaugeVec
@@ -37,4 +44,12 @@ func NewMetrics(registry prometheus.Registerer) *Metrics {
 		TempGauge:             tempGauge,
 		ApiBadResponseCounter: apiBadResponseCounter,
 	}
+}
+
+func (m *Metrics) ObserveSuccess(temp float64, lvs ...string) {
+	m.TempGauge.WithLabelValues(lvs...).Set(temp)
+}
+
+func (m *Metrics) ObserveAPIError(lv string) {
+	m.ApiBadResponseCounter.WithLabelValues(lv).Inc()
 }

@@ -33,6 +33,6 @@ USER 65532:65532
 # checkov:skip=CKV_DOCKER_2: Adding a HEALTHCHECK instruction is unnecessary given that the image is only run in Kubernetes
 # HEALTHCHECK
 
-ENTRYPOINT ["/go-weather-station"]
+ENTRYPOINT ["/go-weather-station", "serve", "--http=0.0.0.0:8090"]
 
 
