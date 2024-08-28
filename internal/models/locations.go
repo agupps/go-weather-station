@@ -12,9 +12,9 @@ type Locations struct {
 }
 
 type Location struct {
-	Zipcode     string  `db:zipcode`
-	Name        string  `db:name`
-	Temperature float64 `db:temperature`
+	Zipcode     string  `json:"zipcode"`
+	Name        string  `json:"name"`
+	Temperature float64 `json:"temperature"`
 }
 
 func (l *Locations) Notify(w *weather.CurrentWeather) error {
