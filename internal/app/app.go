@@ -10,9 +10,11 @@ import (
 	"time"
 	"weather-station/internal/client"
 	"weather-station/internal/config"
+	"weather-station/internal/handler"
 	"weather-station/internal/metrics"
 	"weather-station/internal/models"
 	"weather-station/internal/poller"
+	"weather-station/internal/queue"
 	"weather-station/internal/weather"
 
 	"github.com/labstack/echo/v5"
@@ -38,11 +40,23 @@ func (a *App) Run() int {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// create logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	// poller
-	p := poller.NewPoller(time.Second, logger)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     a.config.Redis.Addr,     // use default Addr
+		Password: a.config.Redis.Password, // no password set
+		DB:       a.config.Redis.DB,       // use default DB
+		OnConnect: func(ctx context.Context, cn *redis.Conn) error {
+			logger.Info("Connected")
+			return nil
+		},
+	})
+
+	redisQueue := queue.NewRedisQueue(redisClient, logger)
+
+	redisLocker := poller.NewRedisLock(redisClient, logger)
+
+	p := poller.NewPoller(time.Second, logger, redisQueue, redisLocker)
 
 	// registry + metrics
 	registry := prometheus.NewRegistry()
@@ -55,41 +69,28 @@ func (a *App) Run() int {
 	// client for open weather api
 	apiClient := client.NewOpenWeatherMapClient(a.config.Secret, a.config.WeatherProperties)
 
-	// redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     a.config.Redis.Addr,     // use default Addr
-		Password: a.config.Redis.Password, // no password set
-		DB:       a.config.Redis.DB,       // use default DB
-		OnConnect: func(ctx context.Context, cn *redis.Conn) error {
-			logger.Info("Connected")
-			return nil
-		},
-	})
-
 	redisStore := models.NewRedisStore(redisClient, logger)
 
 	done := a.handleExit(logger)
 
-	go func() {
-		defer cancel()
-		<-done
-		logger.Info("executing cancel()")
-	}()
-
 	for _, zipcode := range a.config.Locations {
 		w := weather.New(apiClient, zipcode, logger, newMetrics)
-		p.Add(w)
+		w.AddSubscriber(redisStore)
+		p.Add(ctx, zipcode)
 
 		log.Println(zipcode)
 		if err := redisStore.Create(ctx, models.NewLocation(zipcode)); err != nil {
-			logger.Error("error creating location", "location", zipcode)
+			logger.Error("error creating location", "location", zipcode, "error", err)
 			return 1
 		}
 	}
 
+	locationHandler := handler.NewLocation(redisStore, logger)
+
 	// register new "GET /hello" route
 	e := echo.New()
 	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry})))
+	e.GET("/locations", locationHandler.List)
 
 	go func() {
 		err := e.Start(":8080")
@@ -98,6 +99,13 @@ func (a *App) Run() int {
 		}
 	}()
 
+	go func() {
+		defer cancel()
+		<-done
+		logger.Info("executing cancel()")
+	}()
+
+	logger.Info("starting poller")
 	p.Start(ctx)
 	logger.Info("ending app")
 
@@ -112,8 +120,6 @@ func (a *App) handleExit(logger *slog.Logger) <-chan struct{} {
 		<-sig
 		logger.Info("Handling exit signal")
 		done <- struct{}{}
-		close(sig)
-		close(done)
 	}()
 	return done
 }

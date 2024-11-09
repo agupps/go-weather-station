@@ -1,6 +1,8 @@
 package models
 
-import "context"
+import (
+	"context"
+)
 
 type Model interface {
 	Create(context.Context, *Location) error
@@ -8,4 +10,5 @@ type Model interface {
 	Delete(context.Context, *Location) error
 	Get(context.Context, string) (*Location, error)
 	List(context.Context) ([]Location, error)
+	Notify(*Location)
 }

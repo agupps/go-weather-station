@@ -1,0 +1,21 @@
+package templates
+
+import "weather-station/internal/models"
+import "fmt"
+
+templ Location(locations []models.Location) {
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Location Weather Data</title>
+    </head>
+    <body>
+    for _, location := range locations {
+        <div> Name: { location.Name }, Zipcode: { location.Zipcode }, Temp: { fmt.Sprintf("%.2f", location.Temperature) }</div>
+    }
+    </body>
+    </html>
+
+}

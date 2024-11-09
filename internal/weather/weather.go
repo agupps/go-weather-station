@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"weather-station/internal/client"
 	"weather-station/internal/metrics"
+	"weather-station/internal/models"
 )
 
 type CurrentWeather struct {
@@ -84,7 +85,7 @@ func (w *CurrentWeather) GetTemperature() float64 {
 }
 
 type Subscriber interface {
-	Notify(weather *CurrentWeather) error
+	Notify(*models.Location)
 }
 
 func (w *CurrentWeather) AddSubscriber(s Subscriber) {
@@ -97,9 +98,14 @@ func (w *CurrentWeather) Call() {
 	}
 
 	for _, subscriber := range w.subscribers {
-		if err := subscriber.Notify(w); err != nil {
-			w.Logger.Error("Unable to notify", "Error", err)
+		loc := &models.Location{
+			Zipcode:     w.ZipCode,
+			Name:        w.Name,
+			Temperature: w.GetTemperature(),
 		}
+		w.Logger.Info("calling notify with location data", "location", loc)
+		subscriber.Notify(loc)
+
 	}
 }
 

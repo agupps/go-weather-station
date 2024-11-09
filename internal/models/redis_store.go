@@ -23,16 +23,15 @@ func NewRedisStore(redisClient *redis.Client, logger *slog.Logger) *RedisStore {
 }
 
 func (r *RedisStore) Create(ctx context.Context, location *Location) error {
-	countAdded, err := r.client.SAdd(ctx, locationsSet, location.Zipcode).Result()
+	_, err := r.client.SAdd(ctx, locationsSet, location.Zipcode).Result()
 	if err != nil {
 		return err
 	}
-	if countAdded > 0 {
-		jsonrep, _ := json.Marshal(location)
-		if _, err := r.client.Set(ctx, location.Zipcode, jsonrep, 0).Result(); err != nil {
-			return err
-		}
+	jsonrep, _ := json.Marshal(location)
+	if _, err := r.client.Set(ctx, location.Zipcode, jsonrep, 0).Result(); err != nil {
+		return err
 	}
+
 	return nil // no error
 }
 
@@ -80,4 +79,13 @@ func (r *RedisStore) Get(ctx context.Context, zipCode string) (*Location, error)
 		return nil, err
 	}
 	return location, nil
+}
+
+func (r *RedisStore) Notify(l *Location) {
+	r.logger.Info("redis store calling update", "location", l)
+
+	if err := r.Update(context.TODO(), l); err != nil {
+		r.logger.Error("error updating db", "error", err)
+	}
+	return
 }
