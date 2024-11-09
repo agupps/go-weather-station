@@ -11,11 +11,18 @@ type Config struct {
 	Secret            string            `yaml:"secret"`
 	WeatherProperties WeatherProperties `yaml:"weatherProperties"`
 	Locations         []string          `yaml:"locations"`
+	Redis             Redis             `yaml:"redis"`
 }
 
 type WeatherProperties struct {
 	Units    string `yaml:"units"`
 	Language string `yaml:"language"`
+}
+
+type Redis struct {
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 func (c *Config) Parse() error {
